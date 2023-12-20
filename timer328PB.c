@@ -21,7 +21,7 @@ void Timer_Init (Timer_Prescale pre, unsigned int uiInitialOffset)
 	TIMSK1 = 0b00000010;
 }
 
-void Timer_F_PWM0 (Timer_PWM_Channel chan, Timer_PWM_ClockSel clksel, Timer_PWM_Pol pol)
+void Timer_F_PWM0 (Timer_PWM_Channel chan, Timer_PWM_ClockSel clksel, Timer_PWM_Pol pol, int iWantInterrupt)
 {
   // setup fast PWM mode (closest to what we did in micro)
   // want 'negative polarity', so start low, go high on match, go low at end of period
@@ -55,6 +55,7 @@ void Timer_F_PWM0 (Timer_PWM_Channel chan, Timer_PWM_ClockSel clksel, Timer_PWM_
     DDRD |= 0b01000000;
     
     // setup interrupts
-    TIMSK0 |= 0b00000001;
+    if (iWantInterrupt)
+		TIMSK0 |= 0b00000001;
   }
 }

@@ -105,9 +105,9 @@ int BME280_SW_RESET (void)
   }
   while (target & 1);
 
-  char buff [80] = {0};
-  (void)sprintf (buff, "\r\ninit loops BME280 : %ld", itts);
-  SCI0_TxString(buff);
+  //char buff [80] = {0};
+  //(void)sprintf (buff, "\r\ninit loops BME280 : %ld", itts);
+  //SCI0_TxString(buff);
   return 0;
 }
 
@@ -170,11 +170,11 @@ int BME280_FetchCompensationValues (void)
 
 	BME280_CompTable.dig_T1 = (unsigned short)(scratchL + ((unsigned int)scratchH << 8u));
 
-	{
-		char buff[80] = {0};
-		(void)sprintf(buff, "\r\nT1 : %u", BME280_CompTable.dig_T1);
-		SCI0_TxString(buff);
-	}
+	//{
+		//char buff[80] = {0};
+		//(void)sprintf(buff, "\r\nT1 : %u", BME280_CompTable.dig_T1);
+		//SCI0_TxString(buff);
+	//}
 	// dig_T1 //////////////////////////////////////////////////////////////////
 
 	// dig_T2 //////////////////////////////////////////////////////////////////
@@ -185,11 +185,11 @@ int BME280_FetchCompensationValues (void)
 	return -1;
 
 	BME280_CompTable.dig_T2 = (short)(scratchL + ((unsigned int)scratchH << 8u));
-	{
-		char buff[80] = {0};
-		(void)sprintf(buff, "\r\nT2 : %d", BME280_CompTable.dig_T2);
-		SCI0_TxString(buff);
-	}
+	//{
+		//char buff[80] = {0};
+		//(void)sprintf(buff, "\r\nT2 : %d", BME280_CompTable.dig_T2);
+		//SCI0_TxString(buff);
+	//}
 	// dig_T2 //////////////////////////////////////////////////////////////////
 
 	// dig_T3 //////////////////////////////////////////////////////////////////
@@ -200,11 +200,11 @@ int BME280_FetchCompensationValues (void)
 	return -1;
 
 	BME280_CompTable.dig_T3 = (short)(scratchL + ((unsigned int)scratchH << 8u));
-	{
-		char buff[80] = {0};
-		(void)sprintf(buff, "\r\nT3 : %d", BME280_CompTable.dig_T3);
-		SCI0_TxString(buff);
-	}
+	//{
+		//char buff[80] = {0};
+		//(void)sprintf(buff, "\r\nT3 : %d", BME280_CompTable.dig_T3);
+		//SCI0_TxString(buff);
+	//}
 
 	// dig_T3 //////////////////////////////////////////////////////////////////
 

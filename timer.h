@@ -52,4 +52,4 @@ typedef enum Timer_PWM_Pol
 void Timer_Init (Timer_Prescale pre, unsigned int uiInitialOffset);
 
 // bring up timer 0 in fast PWM mode
-void Timer_F_PWM0 (Timer_PWM_Channel chan, Timer_PWM_ClockSel clksel, Timer_PWM_Pol pol);
+void Timer_F_PWM0 (Timer_PWM_Channel chan, Timer_PWM_ClockSel clksel, Timer_PWM_Pol pol, int iWantInterrupt);
