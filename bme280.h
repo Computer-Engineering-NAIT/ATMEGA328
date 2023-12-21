@@ -3,6 +3,7 @@
 // Edited by: Joseph Limin, NAIT
 // Revision History:
 //	October 12, 2023: Added raw values and proper compensation
+//	Dec 21, 2023: Corrected case of filename to match implementation
 //
 //Software by 2020 Bosch Sensortec GmbH. used
 //Copyright (c) 2020 Bosch Sensortec GmbH. All rights reserved.
