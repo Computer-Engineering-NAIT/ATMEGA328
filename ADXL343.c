@@ -123,10 +123,21 @@ void ADXL343_ActivityInterrupt (void)
 	ADXL343_WriteReg8(0x2E, 0b00010000); // enable activity interrupt 		
 }
 
+void ADXL343_TapInterrupt (void)
+{
+  // assume device is initialized
+  ADXL343_WriteReg8(0x1D, 20); // 20 * 62.5mg = 1.25g (instantaneous) 
+  ADXL343_WriteReg8(0x21, 100); // 100 * 625us = ~63ms accelerometer event (shorten to reject doubles)
+  ADXL343_WriteReg8(0x2A, 0b00001111); // tap ac, xyz, suppress doubles
+  ADXL343_WriteReg8(0x2F, 0b00000000); // all interrupts to int1
+  ADXL343_WriteReg8(0x2E, 0b01000000); // enable single tap interrupt
+}
+
 unsigned char ADXL343_ReadInterruptSource (void)
 {
 	unsigned char target = 0;
-	ADXL343_ReadReg8(0x30, &target);
+	ADXL343_ReadReg8(0x2B, &target); // discard act/tap status
+  ADXL343_ReadReg8(0x30, &target); // return interrupt source 
 	return target;
 }
 
