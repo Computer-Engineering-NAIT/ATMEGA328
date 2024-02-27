@@ -56,6 +56,6 @@ void Timer_F_PWM0 (Timer_PWM_Channel chan, Timer_PWM_ClockSel clksel, Timer_PWM_
     
     // setup interrupts
     if (iWantInterrupt)
-		TIMSK0 |= 0b00000001;
+		  TIMSK0 |= 0b00000001;
   }
 }
