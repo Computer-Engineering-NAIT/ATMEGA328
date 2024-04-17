@@ -16,6 +16,9 @@ ISR (USART_RX_vect)
 */
 
 // initialize UCSR0 for asynchronous use, 8N1, at specified BAUD rate
+// NOTE: Running 9600 BAUD with a clock of 1MHz is not recommended
+//  depending on technique - 8928 or 10416 BAUD will be generated due
+//  to low denom values - recommended that minimum clock is 2MHz
 int SCI0_Init (unsigned long ulBus, unsigned long ulBAUD, int bRXInt);
 
 // blocking send of a byte
