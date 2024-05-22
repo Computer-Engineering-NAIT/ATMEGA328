@@ -7,7 +7,7 @@
 
 int LTC2633_Write (unsigned int uiVal)
 {
-	if (I2C_Start(0x10, false))
+	if (I2C_Start(0x10, I2C_WRITE))
 	return -1;
 	if (I2C_Write8 (0b00100000, 0)) // channel A
 	return -2;
