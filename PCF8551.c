@@ -51,3 +51,37 @@ int PCF8551_Init (void)
 	return 0;		
 }
 
+void PCF8551_DisplayOn (void)
+{
+	PCF8551_Write(0x02, 0b00000001); // display on		
+}
+
+void PCF8551_DisplayOff (void)
+{
+	PCF8551_Write(0x02, 0b00000000); // display off
+}
+
+void PCF8551_Test (void)
+{
+	PCF8551_Write(0x04, 0b00000000); // random segs
+	PCF8551_Write(0x05, 0b00000000); // random segs
+	PCF8551_Write(0x06, 0b00000000); // random segs
+	PCF8551_Write(0x07, 0b00000000); // random segs
+	PCF8551_Write(0x08, 0b00000000); // random segs
+	PCF8551_Write(0x09, 0b00000000); // random segs
+	PCF8551_Write(0x0a, 0b00000000); // random segs
+	PCF8551_Write(0x0b, 0b00000000); // random segs
+	PCF8551_Write(0x0c, 0b00000000); // random segs
+	PCF8551_Write(0x0d, 0b00000000); // random segs
+	PCF8551_Write(0x0e, 0b00000000); // random segs
+	PCF8551_Write(0x0f, 0b00000000); // random segs
+	PCF8551_Write(0x10, 0b00000000); // random segs
+	PCF8551_Write(0x11, 0b00000000); // random segs
+	PCF8551_Write(0x12, 0b00000000); // random segs
+	PCF8551_Write(0x13, 0b00000000); // random segs
+	PCF8551_Write(0x14, 0b00000000); // random segs
+	PCF8551_Write(0x15, 0b00000000); // random segs
+	PCF8551_Write(0x16, 0b00000000); // random segs	
+}
+
+

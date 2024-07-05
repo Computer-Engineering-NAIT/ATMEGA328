@@ -7,3 +7,6 @@
 //int PCF8551_Read (unsigned char * Target);
 
 int PCF8551_Init (void);
+void PCF8551_DisplayOn (void);
+void PCF8551_DisplayOff (void);
+void PCF8551_Test (void);
