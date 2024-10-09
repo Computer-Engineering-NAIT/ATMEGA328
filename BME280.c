@@ -5,6 +5,9 @@
 // 	October 12, 2023: Fixed compensation table values
 //					  and added temperature, pressure,
 //				      and humidity functionality
+//  October 09, 2024: Back port from STM32 version
+//						added defaults to init, populate comp table,
+//						code cleanup, and added busy function
 //Software by 2020 Bosch Sensortec GmbH. used
 //Copyright (c) 2020 Bosch Sensortec GmbH. All rights reserved.
 
@@ -12,10 +15,6 @@
 #include <avr/io.h>
 #include "bme280.h"
 #include "stdint.h"
-
-// debug only
-#include "sci.h"
-#include <stdio.h>
 
 // compensation data
 struct BME280_CompensationTable
@@ -41,6 +40,9 @@ struct BME280_CompensationTable
   short dig_H5;
   char dig_H6;
 } BME280_CompTable;
+
+// used in compensation, needs to be populated from BME280_compensate_T_int32
+int32_t BME280_t_fine;
 
 // private helpers
 int BME280_ReadReg8 (unsigned char TargetRegister, unsigned char * TargetValue)
@@ -82,8 +84,7 @@ int BME280_Init (void)
     return -1;
 
   if (BME280_WriteReg8(BME280_CONFIG, 0b10000100)) // 500ms standby, 2 filter coefficient
-  //if (BME280_WriteReg8(BME280_CONFIG, 0b10001100)) // 500ms standby, 2 filter coefficient
-    return -2;
+  	return -2;
 
   return 0;
 }
@@ -105,12 +106,18 @@ int BME280_SW_RESET (void)
   }
   while (target & 1);
 
-  //char buff [80] = {0};
-  //(void)sprintf (buff, "\r\ninit loops BME280 : %ld", itts);
-  //SCI0_TxString(buff);
+  // populate comp values
+  if (BME280_FetchCompensationValues())
+    return -3;
+
+  // populate temperature compensation value
+  (void)BME280_compensate_T_int32(BME280_raw_T());  
+  
+  // rational defaults
+  BME280_SetOversampling(BME280_OS_8x, BME280_OS_8x, BME280_OS_8x, BME280_ModeNormal);
+
   return 0;
 }
-
 
 int BME280_SetOversampling (BME280_Oversampling hum, BME280_Oversampling pres, BME280_Oversampling temp, BME280_SensorMode mode)
 {
@@ -127,35 +134,6 @@ int BME280_SetOversampling (BME280_Oversampling hum, BME280_Oversampling pres, B
   return 0;
 }
 
-int BME280_GetData (unsigned char * pData) // requires 8 bytes
-{
-  if (I2C_Start(BME280ADDR, I2C_WRITE))
-  return -1;
-  
-  // write register address
-  if (I2C_Write8(BME280_PRESS, I2C_NOSTOP))
-  return -2;
-  
-  if (I2C_Start(BME280ADDR, I2C_READ))
-  return -3;
-  
-  for (int i = 0; i < 7; ++i)
-  {
-    if (I2C_Read8(pData + i, I2C_ACK, I2C_NOSTOP))
-    {
-      return -4;
-    }
-  }
-
-  if (I2C_Read8(pData + 7, I2C_NACK, I2C_STOP))
-  {
-    return -5;
-  }
-  
-  return 0;
-}
-
-
 int BME280_FetchCompensationValues (void)
 {
 	unsigned char scratchL = 0;
@@ -169,12 +147,6 @@ int BME280_FetchCompensationValues (void)
 	return -1;
 
 	BME280_CompTable.dig_T1 = (unsigned short)(scratchL + ((unsigned int)scratchH << 8u));
-
-	//{
-		//char buff[80] = {0};
-		//(void)sprintf(buff, "\r\nT1 : %u", BME280_CompTable.dig_T1);
-		//SCI0_TxString(buff);
-	//}
 	// dig_T1 //////////////////////////////////////////////////////////////////
 
 	// dig_T2 //////////////////////////////////////////////////////////////////
@@ -185,11 +157,6 @@ int BME280_FetchCompensationValues (void)
 	return -1;
 
 	BME280_CompTable.dig_T2 = (short)(scratchL + ((unsigned int)scratchH << 8u));
-	//{
-		//char buff[80] = {0};
-		//(void)sprintf(buff, "\r\nT2 : %d", BME280_CompTable.dig_T2);
-		//SCI0_TxString(buff);
-	//}
 	// dig_T2 //////////////////////////////////////////////////////////////////
 
 	// dig_T3 //////////////////////////////////////////////////////////////////
@@ -200,12 +167,6 @@ int BME280_FetchCompensationValues (void)
 	return -1;
 
 	BME280_CompTable.dig_T3 = (short)(scratchL + ((unsigned int)scratchH << 8u));
-	//{
-		//char buff[80] = {0};
-		//(void)sprintf(buff, "\r\nT3 : %d", BME280_CompTable.dig_T3);
-		//SCI0_TxString(buff);
-	//}
-
 	// dig_T3 //////////////////////////////////////////////////////////////////
 
 	// dig_P1 //////////////////////////////////////////////////////////////////
@@ -352,51 +313,69 @@ int BME280_FetchCompensationValues (void)
 	return 0;
 }
 
+int BME280_Busy (void)
+{
+  unsigned char status = 0;
+  
+  if (BME280_ReadReg8(BME280_STATUS, &status))
+    return -1;
+
+  // either measuring or im_update ongoing
+  return status & 0b00001001;
+}
+
 //returns the 20-bit uncompensated temeperature value as an unsigned 32-bit type
 uint32_t BME280_raw_T (void)
 {
-	uint32_t adc_T;
-	uint8_t msb, lsb, xlsb;
-	
-	(void)BME280_ReadReg8(0xFA, &msb);
-	(void)BME280_ReadReg8(0xFB, &lsb);
-	(void)BME280_ReadReg8(0xFC, &xlsb);
-	
-	adc_T = (uint32_t)msb << 12 | (uint32_t)lsb << 4 | (uint32_t)xlsb >> 4;
-	
-	return adc_T;
+  uint32_t adc_T;
+  uint8_t msb, lsb, xlsb;
+
+  while (BME280_Busy())
+  {;;;}
+
+  (void)BME280_ReadReg8(BME280_TEMP + 0, &msb);
+  (void)BME280_ReadReg8(BME280_TEMP + 1, &lsb);
+  (void)BME280_ReadReg8(BME280_TEMP + 2, &xlsb);
+
+  adc_T = (uint32_t)msb << 12 | (uint32_t)lsb << 4 | (uint32_t)xlsb >> 4;
+
+  return adc_T;
 }
 
 //returns the 20-bit uncompensated pressure value as an unsigned 32-bit type
 uint32_t BME280_raw_P (void)
 {
-	uint32_t adc_P;
-	uint8_t msb, lsb, xlsb;
-	
-	(void)BME280_ReadReg8(0xF7, &msb);
-	(void)BME280_ReadReg8(0xF8, &lsb);
-	(void)BME280_ReadReg8(0xF9, &xlsb);
-	
-	adc_P = (uint32_t)msb << 12 | (uint32_t)lsb << 4 | (uint32_t)xlsb >> 4;
-	
-	return adc_P;
+  uint32_t adc_P;
+  uint8_t msb, lsb, xlsb;
+
+  while (BME280_Busy())
+  {;;;}
+
+  (void)BME280_ReadReg8(BME280_PRESS + 0, &msb);
+  (void)BME280_ReadReg8(BME280_PRESS + 1, &lsb);
+  (void)BME280_ReadReg8(BME280_PRESS + 2, &xlsb);
+
+  adc_P = (uint32_t)msb << 12 | (uint32_t)lsb << 4 | (uint32_t)xlsb >> 4;
+
+  return adc_P;
 }
 
 //returns the 16-bit uncompensated humidity value as an unsigned 32-bit type
 uint32_t BME280_raw_H (void)
 {
-	uint32_t adc_H;
-	uint8_t msb, lsb;
-	
-	(void)BME280_ReadReg8(0xFD, &msb);
-	(void)BME280_ReadReg8(0xFE, &lsb);
-	
-	adc_H = (uint32_t)msb << 8 | (uint32_t)lsb;
-	
-	return adc_H;
-}
+  uint32_t adc_H;
+  uint8_t msb, lsb;
 
-int32_t BME280_t_fine;
+  while (BME280_Busy())
+  {;;;}
+
+  (void)BME280_ReadReg8(BME280_HUM + 0, &msb);
+  (void)BME280_ReadReg8(BME280_HUM + 1, &lsb);
+
+  adc_H = (uint32_t)msb << 8 | (uint32_t)lsb;
+
+  return adc_H;
+}
 
 //returns temperature in DegC, resolution is 0.01 DegC. Output value of "5123" equals 51.23 DegC.
 int32_t BME280_compensate_T_int32 (int32_t adc_T)
@@ -405,7 +384,7 @@ int32_t BME280_compensate_T_int32 (int32_t adc_T)
   int32_t var2;
   int32_t temperature;
   int32_t temperature_min = -4000;
-  int32_t temperature_max = 8500;
+  int32_t temperature_max = 8500;  
 
   var1 = (int32_t)((adc_T / 8) - ((int32_t)BME280_CompTable.dig_T1 * 2));
   var1 = (var1 * ((int32_t)BME280_CompTable.dig_T2)) / 2048;
@@ -415,17 +394,11 @@ int32_t BME280_compensate_T_int32 (int32_t adc_T)
   temperature = (BME280_t_fine * 5 + 128) / 256;
 
   if (temperature < temperature_min)
-  {
-	  temperature = temperature_min;
-  }
+    temperature = temperature_min;
   else if (temperature > temperature_max)
-  {
-	  temperature = temperature_max;
-  }
+    temperature = temperature_max;
 
-  return temperature;
-	
-	
+  return temperature;		
 }
 
 //returns pressure as Pa
@@ -433,37 +406,30 @@ int32_t BME280_compensate_T_int32 (int32_t adc_T)
 //Note: remember to compensate for the altitude of the device
 uint32_t BME280_compensate_P_int32(int32_t adc_P)
 {
-	
-	int32_t var1, var2;
-	uint32_t p;
-	
-	var1 = (((int32_t)BME280_t_fine) >> 1) - (int32_t)64000;
-	var2 = (((var1 >> 2) * (var1 >> 2)) >> 11) * ((int32_t)BME280_CompTable.dig_P6);
-	var2 = var2 + ((var1 * ((int32_t)BME280_CompTable.dig_P5)) << 1);
-	var2 = (var2 >> 2) + (((int32_t)BME280_CompTable.dig_P4) << 16);
-	var1 = (((BME280_CompTable.dig_P3 * (((var1 >> 2) * (var1 >> 2)) >> 13)) >> 3) + ((((int32_t)BME280_CompTable.dig_P2) * var1) >> 1)) >> 18;
-	var1 = ((((32768 + var1)) * ((int32_t)BME280_CompTable.dig_P1)) >> 15);
-	if (var1 == 0)
-	{
-		return 0;
-	}
-	
-	p = (((uint32_t)(((int32_t)1048576) - adc_P) - (var2 >> 12))) * 3125;
-	
-	if (p < 0x80000000)
-	{
-		p = (p << 1) / ((uint32_t)var1);	
-	}
-	else
-	{
-		p = (p / (uint32_t)var1) * 2;
-	}
-	
-	var1 = (((int32_t)BME280_CompTable.dig_P9) * ((int32_t)(((p >> 3) * (p >> 3)) >> 13))) >> 12;
-	var2 = (((int32_t)(p >> 2)) * ((int32_t)BME280_CompTable.dig_P8)) >> 13;
-	
-	p = (uint32_t)((int32_t)p + ((var1 + var2 + BME280_CompTable.dig_P7) >> 4));
-	return p;
+  int32_t var1, var2;
+  uint32_t p;
+
+  var1 = (((int32_t)BME280_t_fine) >> 1) - (int32_t)64000;
+  var2 = (((var1 >> 2) * (var1 >> 2)) >> 11) * ((int32_t)BME280_CompTable.dig_P6);
+  var2 = var2 + ((var1 * ((int32_t)BME280_CompTable.dig_P5)) << 1);
+  var2 = (var2 >> 2) + (((int32_t)BME280_CompTable.dig_P4) << 16);
+  var1 = (((BME280_CompTable.dig_P3 * (((var1 >> 2) * (var1 >> 2)) >> 13)) >> 3) + ((((int32_t)BME280_CompTable.dig_P2) * var1) >> 1)) >> 18;
+  var1 = ((((32768 + var1)) * ((int32_t)BME280_CompTable.dig_P1)) >> 15);
+  if (var1 == 0)
+    return 0;
+
+  p = (((uint32_t)(((int32_t)1048576) - adc_P) - (var2 >> 12))) * 3125;
+
+  if (p < 0x80000000)
+    p = (p << 1) / ((uint32_t)var1);	
+  else
+    p = (p / (uint32_t)var1) * 2;
+
+  var1 = (((int32_t)BME280_CompTable.dig_P9) * ((int32_t)(((p >> 3) * (p >> 3)) >> 13))) >> 12;
+  var2 = (((int32_t)(p >> 2)) * ((int32_t)BME280_CompTable.dig_P8)) >> 13;
+
+  p = (uint32_t)((int32_t)p + ((var1 + var2 + BME280_CompTable.dig_P7) >> 4));
+  return p;
 }
 
 //returns humidity in %RH as unsigned 32 bit integer in Q22.10 format (22 integer and 10 fractional bits)
@@ -495,11 +461,37 @@ uint32_t BME280_compensate_H_int64(int32_t adc_H)
 	humidity = (uint32_t)(var5 / 4096);
 
 	if (humidity > humidity_max)
-	{
 		humidity = humidity_max;
-	}
 
-	return humidity;
-	
+	return humidity;	
 }
+
+//int BME280_GetData (unsigned char * pData) // requires 8 bytes
+//{
+//  if (I2C_Start(BME280ADDR, I2C_WRITE))
+//  return -1;
+//  
+//  // write register address
+//  if (I2C_Write8(BME280_PRESS, I2C_NOSTOP))
+//  return -2;
+//  
+//  if (I2C_Start(BME280ADDR, I2C_READ))
+//  return -3;
+//  
+//  for (int i = 0; i < 7; ++i)
+//  {
+//    if (I2C_Read8(pData + i, I2C_ACK, I2C_NOSTOP))
+//    {
+//      return -4;
+//    }
+//  }
+//
+//  if (I2C_Read8(pData + 7, I2C_NACK, I2C_STOP))
+//  {
+//    return -5;
+//  }
+//  
+//  return 0;
+//}
+
 
